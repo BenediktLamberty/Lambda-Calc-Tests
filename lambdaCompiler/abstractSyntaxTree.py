@@ -11,6 +11,10 @@ class Expr(ABC):
     def generate_code(self, env: Env) -> str:
         pass
 
+@dataclass
+class Program(Expr):
+    program: Expr
+
 # \id.e
 @dataclass
 class Abstraction(Expr):

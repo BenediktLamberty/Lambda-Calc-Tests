@@ -6,7 +6,8 @@ class TokenError(Exception):
     pass
 
 class TokenType(Enum):
-    NUM = auto()
+    INT = auto()
+    FLOAT = auto()
     CHAR = auto()
     BOOL = auto()
     LAMBDA = auto() # \
@@ -90,6 +91,12 @@ def tokenize(sourceCode: str) -> List[Token]:
             tokens.append(Token(src.pop(0), TokenType.LAMBDA))
         elif str_is(":="):
             tokens.append(Token(src.pop(0) + src.pop(0), TokenType.SUB))
+        elif str_is("True"):
+            src = src[4:]
+            tokens.append(Token("True", TokenType.BOOL))
+        elif str_is("False"):
+            src = src[5:]
+            tokens.append(Token("False", TokenType.BOOL))
         else: # Multichar token
             # Num Token
             if src[0].isdigit():
@@ -100,7 +107,9 @@ def tokenize(sourceCode: str) -> List[Token]:
                     num += src.pop(0)
                     while len(src) > 0 and src[0].isdigit():
                         num += src.pop(0)
-                tokens.append(Token(num, TokenType.NUM))
+                    tokens.append(Token(num, TokenType.FLOAT))
+                else:
+                    tokens.append(Token(num, TokenType.INT))
             # ident token
             elif src[0].isalpha():
                 ident = ""
@@ -117,7 +126,7 @@ def tokenize(sourceCode: str) -> List[Token]:
     return tokens
 
 def main():
-    src = "\\x.x f x [x:=y] 'n' 123 hihi12 *nonononono* \\x.$$mips\nmips$$ <1,2> 1.22 #why"
+    src = "\\x.x f x [x:=y] 'n' 123 hihi12 *nonononono* \\x.$$mips\nmips$$ <1,2> 1.22 True False #why"
     print(tokenize(src))
 
 if __name__ == "__main__":
