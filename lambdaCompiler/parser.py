@@ -6,9 +6,11 @@ from abc import ABC
 class Par(ABC): pass
 class OpenPar(Par): pass
 class ClosePar(Par): pass
+class Arrow(Par): pass
 
 class Parser:
     tokens: List[Token] = []
+    counter = 0
 
     def eat(self) -> Token:
         return self.tokens.pop(0)
@@ -22,52 +24,67 @@ class Parser:
             raise TokenError(f"Error at `{prev}` \n{err}\nExpecting: {type}")
         return prev
     
-    def produce_ast(self) -> Program:
-        return Program(program=self.parse_expr())
+    def produce_ast(self) -> Expr:
+        return self.parse_expr()
     
     # e ::= var
     #     | e1 e2
-    #     | lambda
+    #     | \x:A.B
+    #     | #x:A.B
     #     | ( e1 )[ var1 := e2 , var2 := e3 ...]
     #     | ( e )
-    #     | < e1, e2 >
+    #     | * | %
+    #     | A -> B # TODO
     
     def parse_expr(self) -> Expr:
         expr_list: List[Expr|Par] = []
         glob_depth = 0
         while True:
             # Vars
-            if self.token_of_type(TokenType.VAR): expr_list.append(Variable(id=self.eat().value))
-            # Literals
-            elif self.token_of_type(TokenType.INT): expr_list.append(Int(value=int(self.eat().value)))
-            elif self.token_of_type(TokenType.FLOAT): expr_list.append(Float(value=float(self.eat().value)))
-            elif self.token_of_type(TokenType.CHAR): expr_list.append(Char(value=str(self.eat().value)))
-            elif self.token_of_type(TokenType.BOOL): expr_list.append(Bool(value=(self.eat().value == "True")))
+            if self.token_of_type(TokenType.VAR): 
+                expr_list.append(self.parse_varname())
+            elif self.token_of_type(TokenType.STAR): 
+                self.eat()
+                expr_list.append(Star())
+            elif self.token_of_type(TokenType.SQUARE): 
+                self.eat()
+                expr_list.append(Square())
             # abstraction
             elif self.token_of_type(TokenType.LAMBDA): expr_list.append(self.parse_abstraction())
+            elif self.token_of_type(TokenType.PROD): expr_list.append(self.parse_product())
             # closing Par
             elif self.token_of_type(TokenType.CLOSE_PAREN):
                 if glob_depth <= 0: break
                 self.eat()
                 expr_list.append(ClosePar())
                 glob_depth -= 1
-            # Pair
-            elif self.token_of_type(TokenType.OPEN_PAIR): expr_list.append(self.parse_pair())
-            # sub and open par
+            # open par
             elif self.token_of_type(TokenType.OPEN_PAREN):
-                depth = 1
-                for token in self.tokens[1:]:
-                    if depth == 0:
-                        if token.type == TokenType.OPEN_BRACKET: expr_list.append("self.parse_substitution()") # TODO 
-                        else: 
-                            self.eat()
-                            expr_list.append(OpenPar())
-                            glob_depth += 1
-                        break
-                    if token.type == TokenType.OPEN_PAREN: depth += 1
-                    elif token.type == TokenType.CLOSE_PAREN: depth -= 1
+                glob_depth += 1
+                self.eat()
+                expr_list.append(OpenPar())
+            elif self.token_of_type(TokenType.TO): expr_list.append(Arrow())
+            elif self.token_of_type(TokenType.OPEN_BRACKET):
+                self.expect(TokenType.OPEN_BRACKET, "No `[` in sub")
+                varname = self.parse_varname()
+                self.expect(TokenType.SUB, "no `:=` in sub")
+                normal, left = self.split_expr(expr_list)
+                expr_list = normal
+                expr_list.append(Substitution(org_expr=self.make_applications(left), free_var=Variable(id=varname), sub_expr=self.parse_expr()))
+                self.expect(TokenType.CLOSE_BRACKET, "No `]` in sub")
             else: break
         return self.make_applications(expr_list)
+    
+    def split_expr(self, expr_list: List[Expr|Par]) -> Tuple[Expr, Expr]:
+        front = expr_list[:]
+        last = []
+        depth = 0
+        for expr in reversed(front):
+            if isinstance(expr, OpenPar): depth -= 1
+            elif isinstance(expr, ClosePar): depth += 1
+            last.append(front.pop())
+            if depth <= 0: break
+        return (front, list(reversed(last)))
     
     def make_applications(self, expr_list: List[Expr|Par]) -> Expr:
         if len(expr_list) == 1:
@@ -88,23 +105,33 @@ class Parser:
     
     def parse_abstraction(self) -> Abstraction:
         self.expect(TokenType.LAMBDA, "No `\` in abstraction")
-        bound_var = self.expect(TokenType.VAR, "No metavar name in abstraction").value
+        bound_var = self.parse_varname()
+        self.expect(TokenType.OFTYPE, "No type in abstraction")
+        param_type = self.parse_expr()
         self.expect(TokenType.DOT, "No `.` in abstraction")
-        return Abstraction(bound_var=bound_var, body=self.parse_expr())
+        return Abstraction(param=bound_var, param_type=param_type, body=self.parse_expr())
     
-    def parse_pair(self):
-        self.expect(TokenType.OPEN_PAIR, "No `<` in pair")
-        head = self.parse_expr()
-        self.expect(TokenType.COMMA, "No `,` in pair")
-        tail = self.parse_expr()
-        self.expect(TokenType.CLOSE_PAIR, "No `>` in pair")
-        return Pair(head=head, tail=tail)
-
-
+    def parse_product(self) -> Product:
+        self.expect(TokenType.PROD, "No `#` in product")
+        bound_var = self.parse_varname()
+        self.expect(TokenType.OFTYPE, "No type in product")
+        param_type = self.parse_expr()
+        self.expect(TokenType.DOT, "No `.` in product")
+        return Product(param=bound_var, param_type=param_type, body=self.parse_expr())
+    
+    def parse_varname(self) -> Variable:
+        name = self.expect(TokenType.VAR, "Var expected").value
+        if "$" in name:
+            ident, variation = tuple(name.split("$"))
+            counter = int(variation) + 1 if int(variation) >= self.counter else counter
+            return Variable(ident, variation=int(variation))
+        else:
+            return Variable(name)
+    
 
 
 if __name__ == "__main__":
-    src = "(x y z) f (g h i (j)(k (l m)))"
+    src = "(f x y) (c b)"
     my_parser = Parser()
     my_parser.tokens = tokenize(src)
-    print(my_parser.produce_ast())
+    print(my_parser.produce_ast().to_str())
