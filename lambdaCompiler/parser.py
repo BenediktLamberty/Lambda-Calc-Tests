@@ -2,6 +2,7 @@ from abstractSyntaxTree import *
 from lexer import tokenize, Token, TokenType, TokenError
 from typing import List, Tuple
 from abc import ABC
+from helperFunctions import *
 
 class Par(ABC): pass
 class OpenPar(Par): pass
@@ -10,7 +11,6 @@ class Arrow(Par): pass
 
 class Parser:
     tokens: List[Token] = []
-    counter = 0
 
     def eat(self) -> Token:
         return self.tokens.pop(0)
@@ -25,7 +25,7 @@ class Parser:
         return prev
     
     def produce_ast(self) -> Expr:
-        return self.parse_expr()
+        return Program(program=self.parse_expr())
     
     # e ::= var
     #     | e1 e2
@@ -42,7 +42,7 @@ class Parser:
         while True:
             # Vars
             if self.token_of_type(TokenType.VAR): 
-                expr_list.append(self.parse_varname())
+                expr_list.append(Variable(self.parse_varname()))
             elif self.token_of_type(TokenType.STAR): 
                 self.eat()
                 expr_list.append(Star())
@@ -70,7 +70,7 @@ class Parser:
                 self.expect(TokenType.SUB, "no `:=` in sub")
                 normal, left = self.split_expr(expr_list)
                 expr_list = normal
-                expr_list.append(Substitution(org_expr=self.make_applications(left), free_var=Variable(id=varname), sub_expr=self.parse_expr()))
+                expr_list.append(Substitution(org_expr=self.make_applications(left), free_var=varname, sub_expr=self.parse_expr()))
                 self.expect(TokenType.CLOSE_BRACKET, "No `]` in sub")
             else: break
         return self.make_applications(expr_list)
@@ -119,19 +119,18 @@ class Parser:
         self.expect(TokenType.DOT, "No `.` in product")
         return Product(param=bound_var, param_type=param_type, body=self.parse_expr())
     
-    def parse_varname(self) -> Variable:
-        name = self.expect(TokenType.VAR, "Var expected").value
-        if "$" in name:
-            ident, variation = tuple(name.split("$"))
-            counter = int(variation) + 1 if int(variation) >= self.counter else counter
-            return Variable(ident, variation=int(variation))
-        else:
-            return Variable(name)
+    def parse_varname(self) -> str:
+        return self.expect(TokenType.VAR, "Var expected").value
     
 
 
 if __name__ == "__main__":
-    src = "(f x y) (c b)"
+    # 
+    src = "((x \ x: x y. x y )[y:=f x])[f := x]"
     my_parser = Parser()
     my_parser.tokens = tokenize(src)
-    print(my_parser.produce_ast().to_str())
+    ast = my_parser.produce_ast()
+    print(ast.get_free_vars())
+    print(ast.to_str())
+    while not ast.find_unconflicting_subs(): pass
+    print(ast.to_str())
