@@ -126,11 +126,29 @@ class Parser:
 
 if __name__ == "__main__":
     # 
-    src = "((x \ x: x y. x y )[y:=f x])[f := x]"
-    my_parser = Parser()
-    my_parser.tokens = tokenize(src)
-    ast = my_parser.produce_ast()
-    print(ast.get_free_vars())
-    print(ast.to_str())
-    while not ast.find_unconflicting_subs(): pass
-    print(ast.to_str())
+    src1 = "(\ A : *. A) int"
+    # src2 = "(x) [x := y] [y := z]"
+    my_parser1 = Parser()
+    my_parser1.tokens = tokenize(src1)
+    ast1 = my_parser1.produce_ast()
+    # my_parser2 = Parser()
+    # my_parser2.tokens = tokenize(src2)
+    # ast2 = my_parser2.produce_ast()
+    #print(ast.get_free_vars())
+    # print(ast1.to_str())
+    # while not ast1.find_unconflicting_subs(): print(ast1.to_str())
+    # print(ast1.to_str())
+    # print(ast2.to_str())
+    # print(ast1.alpha_equals(ast2))
+    print(ast1.infer_type({"int" : Star()}))
+
+
+
+
+
+
+
+
+
+
+# (and true true) [and := \ x : bool. \ y : bool. x bool y false] [true := \ A : *. \ x : A. \ y : A. x] [false := \ A : *. \ x : A. \ y : A. y] [bool := # A : *. # x : A. # y : A. A]
