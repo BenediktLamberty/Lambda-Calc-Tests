@@ -7,7 +7,7 @@ class TokenError(Exception):
 
 class TokenType(Enum):
     LAMBDA = auto() # \
-    PROD = auto() # #
+    PROD = auto() # &
     DOT = auto() # .
     COMMA = auto() # ,
     OFTYPE = auto() # :
@@ -21,7 +21,7 @@ class TokenType(Enum):
     OPEN_BRACKET = auto()  # [
     CLOSE_BRACKET = auto()  # ]
     STAR = auto() # *
-    SQUARE = auto() # %
+    SQUARE = auto() # #
     EOF = auto() # End of File
 
 @dataclass
@@ -64,11 +64,11 @@ def tokenize(sourceCode: str) -> List[Token]:
         elif str_is(","): add_token(TokenType.COMMA)
         elif str_is("."): add_token(TokenType.DOT)
         elif str_is("\\"): add_token(TokenType.LAMBDA)
-        elif str_is("#"): add_token(TokenType.PROD)
+        elif str_is("&"): add_token(TokenType.PROD)
         elif str_is(":="): add_token(TokenType.SUB, pop_len=2)
         elif str_is(":"): add_token(TokenType.OFTYPE)
         elif str_is("*"): add_token(TokenType.STAR)
-        elif str_is("%"): add_token(TokenType.SQUARE)
+        elif str_is("#"): add_token(TokenType.SQUARE)
         elif str_is("->"): add_token(TokenType.TO, pop_len=2)
         elif src[0].isalpha():
             ident = ""

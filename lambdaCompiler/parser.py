@@ -112,7 +112,7 @@ class Parser:
         return Abstraction(param=bound_var, param_type=param_type, body=self.parse_expr())
     
     def parse_product(self) -> Product:
-        self.expect(TokenType.PROD, "No `#` in product")
+        self.expect(TokenType.PROD, "No `&` in product")
         bound_var = self.parse_varname()
         self.expect(TokenType.OFTYPE, "No type in product")
         param_type = self.parse_expr()
@@ -126,7 +126,7 @@ class Parser:
 
 if __name__ == "__main__":
     # 
-    src1 = "(\ A : *. A) int"
+    src1 = "(and true true) [and := \ x : bool. \ y : bool. x bool y false] [true := \ A : *. \ x : A. \ y : A. x] [false := \ A : *. \ x : A. \ y : A. y] [bool := & A : *. & x : A. & y : A. A]"
     # src2 = "(x) [x := y] [y := z]"
     my_parser1 = Parser()
     my_parser1.tokens = tokenize(src1)
@@ -137,10 +137,12 @@ if __name__ == "__main__":
     #print(ast.get_free_vars())
     # print(ast1.to_str())
     # while not ast1.find_unconflicting_subs(): print(ast1.to_str())
+    while not ast1.find_unconflicting_subs(): pass
+    print(ast1.to_str())
     # print(ast1.to_str())
     # print(ast2.to_str())
     # print(ast1.alpha_equals(ast2))
-    print(ast1.infer_type({"int" : Star()}))
+    print(ast1.infer_type().to_str())
 
 
 

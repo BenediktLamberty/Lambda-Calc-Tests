@@ -165,7 +165,7 @@ class Product(BetaReduceable):
     param_type: Expr
     body: Expr
     def to_str(self) -> str:
-        return f"# {self.param} : {self.param_type.to_str()}. {self.body.to_str()}"
+        return f"& {self.param} : {self.param_type.to_str()}. {self.body.to_str()}"
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         if not isinstance(other, Product): return False
         type_equals = self.param_type.alpha_equals(other.param_type, var_renaming)
@@ -238,11 +238,10 @@ class Application(Expr):
         func_body_type = func_type.body
         func_param_type = func_type.param_type
         arg_type = self.arg.infer_type(Gamma) # TODO ß reduction
-
         if not deepcopy(func_param_type).alpha_equals(deepcopy(arg_type), {}):
             raise TypeInferenceError("param and arg type do not match")
-        self_type_prog = Program(program=Substitution(org_expr=deepcopy(func_body_type), free_var=deepcopy(func_type.param), sub_expr=deepcopy(arg_type)))
-        while self_type_prog.find_unconflicting_subs(): pass
+        self_type_prog = Program(program=Substitution(org_expr=deepcopy(func_body_type), free_var=deepcopy(func_type.param), sub_expr=deepcopy(self.arg))) # TODO ß reduction
+        while not self_type_prog.find_unconflicting_subs(): pass
         return self_type_prog.program
 
 
@@ -345,7 +344,7 @@ class Star(Universe):
 @dataclass
 class Square(Universe):
     def to_str(self) -> str:
-        return "%"
+        return "#"
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         return isinstance(other, Square)
 
