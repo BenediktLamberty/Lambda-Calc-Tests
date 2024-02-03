@@ -5,7 +5,6 @@ from typing import List, Tuple, Set, Dict, Self, Type
 from enum import Enum, auto
 from copy import copy, deepcopy
 
-# TODO UNTESTED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 class ASTError(Exception):
     pass
@@ -43,9 +42,9 @@ class Expr(ABC):
         pass
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         pass
-    def find_and_do_beta_reductions(self, Gamma: Dict[str, Self]) -> Tuple[(Self | None), bool]:
-        return (None, False)
     def infer_type(self, Gamma: Dict[str, Self]) -> Self:
+        pass
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Self]) -> bool | Self:
         pass
 
 @dataclass
@@ -70,14 +69,17 @@ class Program(Expr):
         if self_free_vars != other_free_vars: return False
         var_renaming = dict(zip(self_free_vars, self_free_vars))
         return self.program.alpha_equals(other.program, var_renaming)
-    def find_and_do_beta_reductions(self, Gamma: Dict[str, Expr] = {}) -> Tuple[(Expr | None), bool]:
-        program_out, repl_something = self.program.find_and_do_beta_reductions(Gamma)
-        if program_out is not None: 
-            self.program = program_out 
-            repl_something = True
-        return (None, repl_something)
     def infer_type(self, Gamma: Dict[str, Expr] = {}) -> Expr:
         return self.program.infer_type(Gamma)
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Expr] = {}) -> bool | Expr:
+        return_value =  self.program.one_beta_normal_reduction(Gamma)
+        if isinstance(return_value, bool): return return_value
+        self.program = return_value
+        return True
+    def to_beta_normal_form(self, Gamma: Dict[str, Expr] = {}):
+        while not self.find_unconflicting_subs(): pass
+        while self.one_beta_normal_reduction(Gamma): 
+            while not self.find_unconflicting_subs(): pass
 
 # id
 @dataclass
@@ -98,6 +100,8 @@ class Variable(Expr):
         if self.id not in set(Gamma.keys()):
             raise TypeInferenceError("Free Variable in infered typing expr")
         return Gamma[self.id]
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Expr]) -> bool | Expr:
+        return False
     
 @dataclass
 class BetaReduceable(Expr, ABC):
@@ -125,17 +129,19 @@ class BetaReduceable(Expr, ABC):
         return type_last and body_last
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         pass
-    def find_and_do_beta_reductions(self, Gamma: Dict[str, Expr]) -> Expr | None:
-        new_Gamma = {**Gamma, self.param : self.param_type}
-        param_type_out, repl_something_param = self.param_type.find_and_do_beta_reductions(Gamma)
-        if param_type_out is not None: 
-            self.param_type = param_type_out
-            repl_something_param = True
-        body_out, repl_something_body = self.body.find_and_do_beta_reductions(new_Gamma)
-        if body_out is not None: 
-            self.body = body_out
-            repl_something_body = True
-        return (None, repl_something_body or repl_something_param)
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Expr]) -> bool | Expr:
+        param_type_rv = self.param_type.one_beta_normal_reduction(Gamma)
+        if isinstance(param_type_rv, Expr): 
+            self.param_type = param_type_rv
+            return True
+        elif param_type_rv: return True
+        body_rv = self.body.one_beta_normal_reduction({**Gamma, self.param : self.param_type})
+        if isinstance(body_rv, Expr): 
+            self.body = body_rv
+            return True
+        elif body_rv: return True
+        return False
+        
 
 # \id:t.e
 @dataclass
@@ -207,30 +213,6 @@ class Application(Expr):
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         if not isinstance(other, Application): return False
         return self.func.alpha_equals(other.func, var_renaming) and self.arg.alpha_equals(other.arg, var_renaming)
-    def find_and_do_beta_reductions(self, Gamma: Dict[str, Expr]) -> Expr | None:
-        # just skip it...
-        if not isinstance(self.func, BetaReduceable): # TODO Free Vars will cause trouble =====================================================================================================================
-            func_out, repl_something_func = self.func.find_and_do_beta_reductions(Gamma)
-            if func_out is not None: 
-                self.func = func_out
-                repl_something_func = True
-            arg_out, repl_something_arg = self.arg.find_and_do_beta_reductions(Gamma)
-            if arg_out is not None:
-                self.arg = arg_out
-                repl_something_arg = True
-            return (None, repl_something_arg or repl_something_func)
-        # actually do ß-repl
-        # get a reduced version of the param type
-        param_type_prog = Program(program=deepcopy(self.func.param_type))
-        while param_type_prog.find_and_do_beta_reductions(Gamma)[1]: 
-            while param_type_prog.find_unconflicting_subs(): pass
-        # infer the arg type
-        arg_type_prog = Program(program=self.arg.infer_type(Gamma)) # TODO must be implemented! ===========================================================================================================================
-        while arg_type_prog.find_and_do_beta_reductions(Gamma)[1]:
-            while arg_type_prog.find_unconflicting_subs(): pass
-        if not param_type_prog.alpha_equals(arg_type_prog): 
-            raise BetaReductionError(f"Types did not match. param type: `{param_type_prog}`, arg type: `{arg_type_prog}`")
-        return (Substitution(org_expr=self.func.body, free_var=self.func.param, sub_expr=self.arg), False)
     def infer_type(self, Gamma: Dict[str, Expr]) -> Expr:
         func_type = self.func.infer_type(Gamma) # TODO ß reduction 
         if not isinstance(func_type, Product):
@@ -243,6 +225,29 @@ class Application(Expr):
         self_type_prog = Program(program=Substitution(org_expr=deepcopy(func_body_type), free_var=deepcopy(func_type.param), sub_expr=deepcopy(self.arg))) # TODO ß reduction
         while not self_type_prog.find_unconflicting_subs(): pass
         return self_type_prog.program
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Expr]) -> bool | Expr:
+        # if func is abstr or prod => reduce it
+        if isinstance(self.func, BetaReduceable):
+            # compare types
+            param_type = Program(program=deepcopy(self.func.param_type))
+            param_type.to_beta_normal_form(Gamma)
+            arg_type = Program(program=deepcopy(self.arg).infer_type(Gamma))
+            arg_type.to_beta_normal_form(Gamma)
+            if not param_type.alpha_equals(arg_type):
+                raise BetaReductionError("Param and Arg type are not equal")
+            return Substitution(org_expr=self.func.body, free_var=self.func.param, sub_expr=self.arg)
+        # if func is not abstr => find an other
+        func_rv = self.func.one_beta_normal_reduction(Gamma)
+        if isinstance(func_rv, Expr):
+            self.func = func_rv
+            return True
+        elif func_rv: return True
+        arg_rv = self.arg.one_beta_normal_reduction(Gamma)
+        if isinstance(arg_rv, Expr):
+            self.arg = arg_rv
+            return True
+        elif arg_rv: return True
+        return False
 
 
 
@@ -311,10 +316,10 @@ class Substitution(Expr):
         return org_last and sub_last
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         raise AlphaEqError("Substitutions may not be compared")
-    def find_and_do_beta_reductions(self, Gamma: Dict[str, Expr]) -> Expr | None:
-        raise BetaReductionError("All substitutions must be carried out before reduction!")
     def infer_type(self, Gamma: Dict[str, Self]) -> Self:
         raise TypeInferenceError("Substitutions cannot be typed")
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Self]) -> bool | Self:
+        raise BetaReductionError("Subs cannot be reduced")
             
 
 @dataclass
@@ -333,6 +338,8 @@ class Universe(Expr, ABC):
         for ax in AXIOMS:
             if isinstance(self, ax[0]): return ax[1]()
         raise TypeInferenceError("Universe has no type")
+    def one_beta_normal_reduction(self, Gamma: Dict[str, Expr]) -> bool | Expr:
+        return False
 
 @dataclass
 class Star(Universe):

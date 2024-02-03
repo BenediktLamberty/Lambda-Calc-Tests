@@ -24,7 +24,7 @@ class Parser:
             raise TokenError(f"Error at `{prev}` \n{err}\nExpecting: {type}")
         return prev
     
-    def produce_ast(self) -> Expr:
+    def produce_ast(self) -> Program:
         return Program(program=self.parse_expr())
     
     # e ::= var
@@ -126,23 +126,15 @@ class Parser:
 
 if __name__ == "__main__":
     # 
-    src1 = "(and true true) [and := \ x : bool. \ y : bool. x bool y false] [true := \ A : *. \ x : A. \ y : A. x] [false := \ A : *. \ x : A. \ y : A. y] [bool := & A : *. & x : A. & y : A. A]"
-    # src2 = "(x) [x := y] [y := z]"
+    src1 = "((\ A : *. \ x : type_id A. x) bool true) [id := \ A : *. \ x : A. x] [type_id := \ C : *. C] [bool := & B : *. & x : B. & y : B. B] [true := \ A : *. \ x : A. \ y : A. x]"
     my_parser1 = Parser()
     my_parser1.tokens = tokenize(src1)
     ast1 = my_parser1.produce_ast()
-    # my_parser2 = Parser()
-    # my_parser2.tokens = tokenize(src2)
-    # ast2 = my_parser2.produce_ast()
-    #print(ast.get_free_vars())
-    # print(ast1.to_str())
-    # while not ast1.find_unconflicting_subs(): print(ast1.to_str())
     while not ast1.find_unconflicting_subs(): pass
     print(ast1.to_str())
-    # print(ast1.to_str())
-    # print(ast2.to_str())
-    # print(ast1.alpha_equals(ast2))
-    print(ast1.infer_type().to_str())
+    ast1.to_beta_normal_form()
+    #ast1.one_beta_normal_reduction({})
+    print(ast1.to_str())
 
 
 
@@ -153,4 +145,4 @@ if __name__ == "__main__":
 
 
 
-# (and true true) [and := \ x : bool. \ y : bool. x bool y false] [true := \ A : *. \ x : A. \ y : A. x] [false := \ A : *. \ x : A. \ y : A. y] [bool := # A : *. # x : A. # y : A. A]
+# (and true true) [and := \ x : bool. \ y : bool. x bool y false] [true := \ A : *. \ x : A. \ y : A. x] [false := \ A : *. \ x : A. \ y : A. y] [bool := & A : *. & x : A. & y : A. A]
