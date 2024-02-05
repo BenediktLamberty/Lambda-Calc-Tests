@@ -1,0 +1,7 @@
+[if_else := \ A : *. \ cond : Bool. \ x : A. \ y : A. cond A x y]
+[or := \ x : Bool. \ y : Bool. x Bool x y]
+[and := \ x : Bool. \ y : Bool. x Bool y x]
+[not := \ x : Bool. x Bool false true]
+[true := \ A : *. \ x : A. \ y : A. x] 
+[false := \ A : *. \ x : A. \ y : A. y] 
+[Bool := & A : *. & x : A. & y : A. A]

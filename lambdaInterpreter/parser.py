@@ -3,6 +3,7 @@ from lexer import tokenize, Token, TokenType, TokenError
 from typing import List, Tuple
 from abc import ABC
 from helperFunctions import *
+import os
 
 class Par(ABC): pass
 class OpenPar(Par): pass
@@ -122,19 +123,27 @@ class Parser:
     def parse_varname(self) -> str:
         return self.expect(TokenType.VAR, "Var expected").value
     
-
-
+#interesting_ast = Program(program=Abstraction(param='A', param_type=Star(), body=Abstraction(param='f', param_type=Product(param='_', param_type=Variable(id='A'), body=Variable(id='A')), body=Abstraction(param='x', param_type=Variable(id='A'), body=Application(func=Abstraction(param='x', param_type=Variable(id='A'), body=Application(func=Variable(id='f'), arg=Application(func=Application(func=Application(func=Abstraction(param='A', param_type=Star(), body=Abstraction(param='f', param_type=Product(param='_', param_type=Variable(id='A'), body=Variable(id='A')), body=Abstraction(param='x', param_type=Variable(id='A'), body=Application(func=Variable(id='f'), arg=Variable(id='x'))))), arg=Variable(id='A')), arg=Variable(id='f')), arg=Variable(id='x')))), arg=Application(func=Application(func=Application(func=Abstraction(param='A', param_type=Star(), body=Abstraction(param='f', param_type=Product(param='_', param_type=Variable(id='A'), body=Variable(id='A')), body=Abstraction(param='x', param_type=Variable(id='A'), body=Application(func=Variable(id='f'), arg=Variable(id='x'))))), arg=Variable(id='A')), arg=Variable(id='f')), arg=Variable(id='x')))))))
 if __name__ == "__main__":
     # 
-    src1 = "((\ A : *. \ x : type_id A. x) bool true) [id := \ A : *. \ x : A. x] [type_id := \ C : *. C] [bool := & B : *. & x : B. & y : B. B] [true := \ A : *. \ x : A. \ y : A. x]"
+    src1 = "( eq two two) {nats}"
     my_parser1 = Parser()
     my_parser1.tokens = tokenize(src1)
     ast1 = my_parser1.produce_ast()
-    while not ast1.find_unconflicting_subs(): pass
+    #ast1 = interesting_ast
     print(ast1.to_str())
-    ast1.to_beta_normal_form()
+    while not ast1.find_unconflicting_subs(): print(ast1.to_str())
+    print(ast1.to_str())
+    while ast1.one_beta_normal_reduction(): 
+        print("red step fin -> subs")
+        while not ast1.find_unconflicting_subs(): print(ast1.to_str())
+        print(ast1.to_str())
+        print("awaiting red")
+    #ast1.to_beta_normal_form()
     #ast1.one_beta_normal_reduction({})
     print(ast1.to_str())
+    print("fin")
+    #print(ast1.infer_type().to_str())
 
 
 
@@ -146,3 +155,4 @@ if __name__ == "__main__":
 
 
 # (and true true) [and := \ x : bool. \ y : bool. x bool y false] [true := \ A : *. \ x : A. \ y : A. x] [false := \ A : *. \ x : A. \ y : A. y] [bool := & A : *. & x : A. & y : A. A]
+# ((\ A : *. \ x : type_id A. x) bool true) [id := \ A : *. \ x : A. x] [type_id := \ C : *. C] [bool := & B : *. & x : B. & y : B. B] [true := \ A : *. \ x : A. \ y : A. x]

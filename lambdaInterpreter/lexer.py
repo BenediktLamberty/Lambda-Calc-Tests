@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Tuple
+import os
 
 class TokenError(Exception):
     pass
@@ -28,6 +29,15 @@ class TokenType(Enum):
 class Token:
     value: str
     type: TokenType
+
+def read_from_file(path: str) -> str:
+    # print(os.getcwd())
+    try:
+        with open(path, "r") as file:
+            return file.read()
+    except IOError:
+        with open(f"lambdaInterpreter/inputs/{path}.lm", "r") as file:
+            return file.read()
 
 
 def tokenize(sourceCode: str) -> List[Token]:
@@ -57,8 +67,12 @@ def tokenize(sourceCode: str) -> List[Token]:
                 src.pop(0)
         elif str_is("("): add_token(TokenType.OPEN_PAREN)
         elif str_is(")"): add_token(TokenType.CLOSE_PAREN)
-        elif str_is("{"): add_token(TokenType.OPEN_BRACE)
-        elif str_is("}"): add_token(TokenType.CLOSE_BRACE)
+        elif str_is("{"): 
+            src.pop(0)
+            path = ""
+            while (char := src.pop(0)) != "}":
+                path += char
+            src += read_from_file(path.strip())
         elif str_is("["): add_token(TokenType.OPEN_BRACKET)
         elif str_is("]"): add_token(TokenType.CLOSE_BRACKET)
         elif str_is(","): add_token(TokenType.COMMA)
@@ -70,9 +84,9 @@ def tokenize(sourceCode: str) -> List[Token]:
         elif str_is("*"): add_token(TokenType.STAR)
         elif str_is("#"): add_token(TokenType.SQUARE)
         elif str_is("->"): add_token(TokenType.TO, pop_len=2)
-        elif src[0].isalpha():
+        elif src[0].isalpha() or src[0].isdigit() or src[0] == "_":
             ident = ""
-            while len(src) > 0 and (src[0].isalpha() or src[0].isdigit() or src[0] in ["_", "$"]):
+            while len(src) > 0 and (src[0].isalpha() or src[0].isdigit() or src[0] == "_"):
                 ident += src.pop(0)
             tokens.append(Token(ident, TokenType.VAR))
         # skip spaces etc

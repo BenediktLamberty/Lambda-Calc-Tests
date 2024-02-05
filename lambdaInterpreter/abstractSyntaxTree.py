@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Set, Dict, Self, Type
 from enum import Enum, auto
 from copy import copy, deepcopy
-
+4
 
 class ASTError(Exception):
     pass
@@ -59,10 +59,11 @@ class Program(Expr):
     def find_unconflicting_subs(self) -> bool:
         program_last = self.program.find_unconflicting_subs()
         if program_last and isinstance(self.program, Substitution):
-            self.program = self.program.do_substitution()
+            self.program = deepcopy(self.program.do_substitution())
             return False
         return program_last
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str] = {}) -> bool:
+        print("al eq")
         if not isinstance(other, Program): return False
         self_free_vars = self.get_free_vars()
         other_free_vars = other.get_free_vars()
@@ -70,11 +71,14 @@ class Program(Expr):
         var_renaming = dict(zip(self_free_vars, self_free_vars))
         return self.program.alpha_equals(other.program, var_renaming)
     def infer_type(self, Gamma: Dict[str, Expr] = {}) -> Expr:
+        print("infer type")
         return self.program.infer_type(Gamma)
     def one_beta_normal_reduction(self, Gamma: Dict[str, Expr] = {}) -> bool | Expr:
+        print("begin one red step")
         return_value =  self.program.one_beta_normal_reduction(Gamma)
         if isinstance(return_value, bool): return return_value
-        self.program = return_value
+        self.program = deepcopy(return_value) ## deepcopy
+        print("end one red step")
         return True
     def to_beta_normal_form(self, Gamma: Dict[str, Expr] = {}):
         while not self.find_unconflicting_subs(): pass
@@ -121,10 +125,10 @@ class BetaReduceable(Expr, ABC):
         type_last = self.param_type.find_unconflicting_subs()
         body_last = self.body.find_unconflicting_subs()
         if type_last and isinstance(self.param_type, Substitution):
-            self.param_type = self.param_type.do_substitution()
+            self.param_type = deepcopy(self.param_type.do_substitution()) ## deepcopy
             return False
         if body_last and isinstance(self.body, Substitution):
-            self.body = self.body.do_substitution()
+            self.body = deepcopy(self.body.do_substitution()) ## deepcopy
             return False
         return type_last and body_last
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
@@ -132,12 +136,12 @@ class BetaReduceable(Expr, ABC):
     def one_beta_normal_reduction(self, Gamma: Dict[str, Expr]) -> bool | Expr:
         param_type_rv = self.param_type.one_beta_normal_reduction(Gamma)
         if isinstance(param_type_rv, Expr): 
-            self.param_type = param_type_rv
+            self.param_type = deepcopy(param_type_rv) ## deepcopy
             return True
         elif param_type_rv: return True
         body_rv = self.body.one_beta_normal_reduction({**Gamma, self.param : self.param_type})
         if isinstance(body_rv, Expr): 
-            self.body = body_rv
+            self.body = deepcopy(body_rv) ## deepcopy
             return True
         elif body_rv: return True
         return False
@@ -150,7 +154,7 @@ class Abstraction(BetaReduceable):
     param_type: Expr
     body: Expr
     def to_str(self) -> str:
-        return f"\\ {self.param} : {self.param_type.to_str()}. {self.body.to_str()}"
+        return f"\\ {self.param}: {self.param_type.to_str()}. {self.body.to_str()}"
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         if not isinstance(other, Abstraction): return False
         type_equals = self.param_type.alpha_equals(other.param_type, var_renaming)
@@ -158,10 +162,11 @@ class Abstraction(BetaReduceable):
         return type_equals and body_equals
     def infer_type(self, Gamma: Dict[str, Expr]) -> Expr:
         body_type = self.body.infer_type({**Gamma, self.param : self.param_type})
-        self_type = Product(param=self.param, param_type=self.param_type, body=body_type) # TODO should also be reduced before check
+        self_type = Program(Product(param=deepcopy(self.param), param_type=deepcopy(self.param_type), body=deepcopy(body_type)))
+        self_type.to_beta_normal_form(Gamma) # reduction TODO fishy !!!
         if not isinstance(self_type.infer_type(Gamma), tuple(SORTS)):
             raise TypeInferenceError("Abstraction type is not of type sort")
-        return self_type
+        return self_type.program
         
 
 # #A:B.C
@@ -171,7 +176,7 @@ class Product(BetaReduceable):
     param_type: Expr
     body: Expr
     def to_str(self) -> str:
-        return f"& {self.param} : {self.param_type.to_str()}. {self.body.to_str()}"
+        return f"& {self.param}: {self.param_type.to_str()}. {self.body.to_str()}"
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         if not isinstance(other, Product): return False
         type_equals = self.param_type.alpha_equals(other.param_type, var_renaming)
@@ -179,9 +184,15 @@ class Product(BetaReduceable):
         return type_equals and body_equals
     def infer_type(self, Gamma: Dict[str, Expr]) -> Expr:
         param_type_type = self.param_type.infer_type(Gamma)
-        if not isinstance(param_type_type, tuple(SORTS)): # TODO should be ß reduced
+        param_type_type_program = deepcopy(Program(param_type_type)) # reduction
+        param_type_type_program.to_beta_normal_form(Gamma)
+        param_type_type = param_type_type_program.program
+        if not isinstance(param_type_type, tuple(SORTS)):
             raise TypeInferenceError("Product param type is not of type sort")
-        body_type = self.body.infer_type({**Gamma, self.param : self.param_type}) # should be ß reduced#
+        body_type = self.body.infer_type({**Gamma, self.param : self.param_type})
+        body_type_program = deepcopy(Program(body_type)) # reduction
+        body_type_program.to_beta_normal_form({**Gamma, self.param : self.param_type})
+        body_type = body_type_program.program
         if (type(param_type_type), type(body_type), type(body_type)) not in RULES:
             raise TypeInferenceError("Product type dose not follow rules")
         return body_type
@@ -204,23 +215,29 @@ class Application(Expr):
         func_last = self.func.find_unconflicting_subs()
         arg_last = self.arg.find_unconflicting_subs()
         if func_last and isinstance(self.func, Substitution):
-            self.func = self.func.do_substitution()
+            self.func = deepcopy(self.func.do_substitution()) ## deepcopy
             return False
         if arg_last and isinstance(self.arg, Substitution):
-            self.arg = self.arg.do_substitution()
+            self.arg = deepcopy(self.arg.do_substitution()) ## deepcopy
             return False
         return func_last and arg_last
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:
         if not isinstance(other, Application): return False
         return self.func.alpha_equals(other.func, var_renaming) and self.arg.alpha_equals(other.arg, var_renaming)
     def infer_type(self, Gamma: Dict[str, Expr]) -> Expr:
-        func_type = self.func.infer_type(Gamma) # TODO ß reduction 
+        func_type = self.func.infer_type(Gamma)
+        func_type_program = deepcopy(Program(func_type)) # reduction
+        func_type_program.to_beta_normal_form(Gamma)
+        func_type = func_type_program.program
         if not isinstance(func_type, Product):
             raise TypeInferenceError("func type is not a product")
         func_body_type = func_type.body
         func_param_type = func_type.param_type
-        arg_type = self.arg.infer_type(Gamma) # TODO ß reduction
-        if not deepcopy(func_param_type).alpha_equals(deepcopy(arg_type), {}):
+        arg_type = self.arg.infer_type(Gamma)
+        arg_type_program = deepcopy(Program(arg_type)) # reduction
+        arg_type_program.to_beta_normal_form(Gamma)
+        arg_type = arg_type_program.program
+        if not Program(program=deepcopy(func_param_type)).alpha_equals(Program(program=deepcopy(arg_type))):
             raise TypeInferenceError("param and arg type do not match")
         self_type_prog = Program(program=Substitution(org_expr=deepcopy(func_body_type), free_var=deepcopy(func_type.param), sub_expr=deepcopy(self.arg))) # TODO ß reduction
         while not self_type_prog.find_unconflicting_subs(): pass
@@ -234,17 +251,20 @@ class Application(Expr):
             arg_type = Program(program=deepcopy(self.arg).infer_type(Gamma))
             arg_type.to_beta_normal_form(Gamma)
             if not param_type.alpha_equals(arg_type):
+                print("-----------------") #####
+                print(param_type.to_str()) #####
+                print(arg_type.to_str()) #####
                 raise BetaReductionError("Param and Arg type are not equal")
             return Substitution(org_expr=self.func.body, free_var=self.func.param, sub_expr=self.arg)
         # if func is not abstr => find an other
         func_rv = self.func.one_beta_normal_reduction(Gamma)
         if isinstance(func_rv, Expr):
-            self.func = func_rv
+            self.func = deepcopy(func_rv) ## deepcopy
             return True
         elif func_rv: return True
         arg_rv = self.arg.one_beta_normal_reduction(Gamma)
         if isinstance(arg_rv, Expr):
-            self.arg = arg_rv
+            self.arg = deepcopy(arg_rv) ## deepcopy
             return True
         elif arg_rv: return True
         return False
@@ -308,10 +328,10 @@ class Substitution(Expr):
         org_last = self.org_expr.find_unconflicting_subs()
         sub_last = self.sub_expr.find_unconflicting_subs()
         if org_last and isinstance(self.org_expr, Substitution):
-            self.org_expr = self.org_expr.do_substitution()
+            self.org_expr = deepcopy(self.org_expr.do_substitution()) ## deepcopy
             return False
         if sub_last and isinstance(self.sub_expr, Substitution):
-            self.sub_expr = self.sub_expr.do_substitution()
+            self.sub_expr = deepcopy(self.sub_expr.do_substitution()) ## deepcopy
             return False
         return org_last and sub_last
     def alpha_equals(self, other: Self, var_renaming: Dict[str, str]) -> bool:

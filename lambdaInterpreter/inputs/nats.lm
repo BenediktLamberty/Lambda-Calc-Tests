@@ -1,0 +1,30 @@
+[eq := \ m : Nat. \ n : Nat. and (leq m n) (leq n m)]
+[leq := \ m : Nat. \ n : Nat. is_zero (minus m n)]
+[is_zero := \ n : Nat. n Bool (\ x : Bool. false) true]
+
+[exp := \ m : Nat. \ n : Nat. \ A : *. n (& _ : A. A) (m A)]
+[mult := \ m : Nat. \ n : Nat. \ A : *. \ f : (& _ : A. A). m A (n A f)]
+[minus := \ m : Nat. \ n : Nat. n Nat pred m]
+[plus := \ m : Nat. \ n : Nat. \ A : *. \ f : (& _ : A. A). \ x : A. m A f (n A f x)]
+
+[pred := \ n : Nat. \ A : *. \ f : (& _ : A. A). \ x : A. (extract A) (n (Fn (Fn A A) A) (inc A f) (const A x) )]
+[extract := \ A : *. \ k : Fn (Fn A A) A. k (id A)]
+[inc := \ A : *. \ f : Fn A A. \ g : Fn (Fn A A) A. \ h : Fn A A. h (g f)]
+[const := \ A : *. \ x : A. \ u : Fn A A. x]
+[succ := \ n : Nat. \ A : *. \ f : (& _ : A. A). \ x : A. f (n A f x)]
+
+[ten := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f(f(f(f(f(f(f x)))))))))]
+[nine := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f(f(f(f(f(f x))))))))]
+[eight := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f(f(f(f(f x)))))))]
+[seven := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f(f(f(f x))))))]
+[six := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f(f(f x)))))]
+[five := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f(f x))))]
+[four := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f(f x)))]
+[three := \ A : *. \ f : (& _ : A. A). \ x : A. f(f(f x))]
+[two := \ A : *. \ f : (& _ : A. A). \ x : A. f(f x)]
+[one := \ A : *. \ f : (& _ : A. A). \ x : A. f x]
+[zero := \ A : *. \ f : (& _ : A. A). \ x : A. x]
+
+[Nat := & A : *. & _ : (& _ : A. A). & _ : A. A]
+{bools}
+{basics}
